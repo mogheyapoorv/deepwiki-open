@@ -248,6 +248,22 @@ Wiki content is stored in a local git repository per wiki:
 
 Admin configures via env var: `DEEPWIKI_STORAGE_BACKEND=local` (default), `s3`, `gcs`, `azure`, or `minio` with corresponding credentials (`DEEPWIKI_STORAGE_BUCKET`, `DEEPWIKI_STORAGE_ENDPOINT`, etc.). The fsspec abstraction means all code uses a single filesystem API — `fs.open()`, `fs.ls()`, `fs.cp()` — regardless of backend. Local remains the default for simplicity; blob storage is optional for cloud-native or multi-node deployments.
 
+### Branch-Level Wiki (On-Demand)
+
+By default, wikis are generated for the default branch (main/master) only. Branch-level wikis are available **on demand** for predefined branches:
+
+- **Admin or team lead** configures which branches get wiki support per repo (e.g., `develop`, `release/v2.0`, `feature/new-auth`)
+- Branch wiki is generated only when explicitly requested — not auto-generated for every branch
+- Branch wikis are ephemeral: auto-deleted when the branch is merged or deleted (configurable retention)
+- Branch wiki uses a separate git-backed wiki repo: `~/.adalflow/wikis/{owner}/{repo}/branches/{branch_name}/`
+- Branch wiki inherits the main wiki's entity graph but overlays changes from the branch diff
+- **Diff view:** branch wiki highlights what changed vs main — new pages, modified sections, removed content
+- **Use case:** review how a large feature branch changes the architecture before merging. "What does the API surface look like on the release branch?"
+
+**Data model addition:**
+
+**BranchWiki** — `id, repo_id, branch_name, base_wiki_id (→ Wiki, the main branch wiki), git_repo_path, current_commit_sha, generation_status, requested_by, created_at, expires_at (nullable)`
+
 ### Auto-Update Flow
 
 1. Developer pushes to `main` / `master`
