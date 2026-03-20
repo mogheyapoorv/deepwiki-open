@@ -180,6 +180,13 @@ Teams exist for people management only:
 
 **TeamMembership** — `user_id, team_id, role (owner/admin/member), joined_at`
 
+**Who assigns members to teams:**
+- **Superadmin / Org admin** — can create teams and add any user to any team
+- **Team owner / Team admin** — can add/remove members within their own team
+- **OIDC auto-provisioning** — when a user logs in via OIDC, they can be auto-assigned to a default team based on `OIDCProviderConfig.default_team_id` and OIDC claim mappings (e.g., map OIDC group "engineering" → DeepWiki team "Engineering")
+- **Self-join** — optionally, teams can be configured as "open" (any user can join) or "invite-only" (requires admin/owner to add)
+- **GitHub Teams sync** — optionally mirror GitHub org team membership into DeepWiki teams automatically
+
 ### Repo Groups
 
 Repo Groups exist for two purposes only:
@@ -228,6 +235,18 @@ Wiki content is stored in a local git repository per wiki:
 - Commit message format: `wiki: regenerate from {source_commit_sha} [{changed_files_count} files]`
 - PostgreSQL `WikiPage.path` points to the file path within the git repo (e.g., `pages/auth-middleware.md`)
 - WikiPage content is read from git at serve time (cached in Redis for performance)
+
+**Pluggable storage backend** — the wiki git repos, cloned source repos, and generated artifacts use a storage abstraction layer via [fsspec](https://github.com/fsspec/filesystem_spec) (557M+ monthly PyPI downloads, de facto Python storage standard):
+
+| Backend | Use Case | Package |
+|---|---|---|
+| Local filesystem | Default, self-hosted, dev | built-in |
+| AWS S3 | Cloud deployment | `s3fs` |
+| Google Cloud Storage | GCP deployment | `gcsfs` |
+| Azure Blob Storage | Azure deployment | `adlfs` |
+| MinIO | Self-hosted S3-compatible | `s3fs` with `endpoint_url` |
+
+Admin configures via env var: `DEEPWIKI_STORAGE_BACKEND=local` (default), `s3`, `gcs`, `azure`, or `minio` with corresponding credentials (`DEEPWIKI_STORAGE_BUCKET`, `DEEPWIKI_STORAGE_ENDPOINT`, etc.). The fsspec abstraction means all code uses a single filesystem API — `fs.open()`, `fs.ls()`, `fs.cp()` — regardless of backend. Local remains the default for simplicity; blob storage is optional for cloud-native or multi-node deployments.
 
 ### Auto-Update Flow
 
@@ -479,6 +498,19 @@ Per-repo and per-group health dashboard:
 - **Cross-repo coupling:** repos with too many incoming/outgoing edges
 - **Bus factor:** modules with single-contributor knowledge
 - **Test coverage gaps:** high churn + low coverage areas
+
+**Implementation — battle-tested open-source libraries:**
+
+| Metric | Library | Stars | Notes |
+|---|---|---|---|
+| Orphaned code (Python) | [Vulture](https://github.com/jendrikseipp/vulture) | 4.3K | Finds unused functions/classes/imports via static analysis |
+| Orphaned code (JS/TS) | [Knip](https://knip.dev/) | 7K+ | Finds unused files, exports, dependencies, types |
+| API drift (runtime) | [openapi-core](https://github.com/python-openapi/openapi-core) | 359 | Validates actual API responses against OpenAPI spec; integrates with FastAPI/Starlette |
+| API drift (spec diff) | [oasdiff](https://github.com/Tufin/oasdiff) | 1.1K | Go CLI, detects breaking changes between spec versions (300+ rules) |
+| Complexity analysis | [Lizard](https://github.com/terryyin/lizard) | 2.3K | Cyclomatic complexity across 17+ languages (Python, TS, Go, Rust, Java, etc.) |
+| Bus factor / git mining | [PyDriller](https://github.com/ishepard/pydriller) | 947 | Git repo mining framework; bus factor algorithm is ~50-100 lines on top |
+| Test coverage (Python) | [Coverage.py](https://github.com/nedbat/coveragepy) | 3.3K | Standard Python coverage tool; JSON output for programmatic aggregation |
+| Test coverage (JS/TS) | Istanbul/nyc (built into Jest/Vitest) | — | LCOV output, convertible to unified format via lcov-cobertura |
 
 ### Onboarding Mode
 
